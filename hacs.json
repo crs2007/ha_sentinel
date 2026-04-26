@@ -2,5 +2,6 @@
   "name": "HA Sentinel",
   "type": "integration",
   "render_readme": true,
-  "homeassistant": "2023.4.0"
+  "homeassistant": "2023.4.0",
+  "icon": "images/icon.svg"
 }

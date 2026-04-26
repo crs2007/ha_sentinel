@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1565C0"/>
+      <stop offset="100%" stop-color="#0D47A1"/>
+    </linearGradient>
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#BBDEFB"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="6" stdDeviation="10"
+                    flood-color="#000000" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="512" height="512" rx="80" fill="url(#bg)"/>
+
+  <!-- Shield -->
+  <path d="M256,68 L408,132 L408,268
+           C408,356 338,414 256,448
+           C174,414 104,356 104,268 L104,132 Z"
+        fill="url(#shieldGrad)" filter="url(#shadow)"/>
+
+  <!-- Checkmark -->
+  <polyline points="172,276 232,340 344,196"
+            fill="none" stroke="#0D47A1"
+            stroke-width="48" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
