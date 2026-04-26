@@ -12,6 +12,8 @@ from .models import UpdateCandidate
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
+    from .github_client import GitHubClient
+
 
 def _parse_version(v: str):
     try:
@@ -38,9 +40,10 @@ def _version_lt(a: str, b: str) -> bool:
 
 
 class VersionTracker:
-    def __init__(self, hass: "HomeAssistant") -> None:
+    def __init__(self, hass: "HomeAssistant", github_client: "GitHubClient | None" = None) -> None:
         self._store = Store(hass, STORAGE_VERSION, STORAGE_KEY)
         self._tracked: dict[str, dict] = {}
+        self._github_client = github_client
 
     async def async_load(self) -> None:
         data = await self._store.async_load()
@@ -55,17 +58,35 @@ class VersionTracker:
     def _key(self, candidate: UpdateCandidate) -> str:
         return f"{candidate.provider}:{candidate.slug}"
 
-    def update(self, candidate: UpdateCandidate) -> None:
-        """Update tracking record for a candidate. Resets timer on version bump."""
+    async def update(self, candidate: UpdateCandidate) -> None:
+        """Update tracking record. Uses GitHub published_at if available, else first_seen."""
         key = self._key(candidate)
         record = self._tracked.get(key)
-        now = datetime.now(UTC).isoformat()
 
         if record is None or _version_gt(candidate.new_version, record["version"]):
-            self._tracked[key] = {"version": candidate.new_version, "first_seen": now}
+            resolved = await self._resolve_date(candidate)
+            self._tracked[key] = {
+                "version": candidate.new_version,
+                "first_seen": resolved["date"],
+                "date_source": resolved["source"],
+            }
         elif _version_lt(candidate.new_version, record["version"]):
             self._tracked.pop(key, None)
-        # else: same version → keep first_seen unchanged
+        else:
+            # Same version: retry GitHub only if we're still using first_seen
+            if record.get("date_source") != "github" and self._github_client:
+                resolved = await self._resolve_date(candidate)
+                if resolved["source"] == "github":
+                    record["first_seen"] = resolved["date"]
+                    record["date_source"] = "github"
+
+    async def _resolve_date(self, candidate: UpdateCandidate) -> dict:
+        """Return {"date": ISO str, "source": "github" | "first_seen"}."""
+        if self._github_client and candidate.release_url:
+            dt = await self._github_client.get_release_date(candidate.release_url)
+            if dt is not None:
+                return {"date": dt.isoformat(), "source": "github"}
+        return {"date": datetime.now(UTC).isoformat(), "source": "first_seen"}
 
     def is_stable(self, candidate: UpdateCandidate, delay_days: int) -> bool:
         key = self._key(candidate)

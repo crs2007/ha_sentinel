@@ -5,7 +5,10 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING
 
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
+
 from . import backup, notifier, policy_engine
+from .github_client import GitHubClient
 from .models import Decision, SentinelConfig, UpdateCandidate
 from .providers.addon import AddonProvider
 from .providers.core import CoreProvider
@@ -22,7 +25,7 @@ class UpdateManager:
     def __init__(self, hass: "HomeAssistant", config: SentinelConfig) -> None:
         self.hass = hass
         self.config = config
-        self.tracker = VersionTracker(hass)
+        self.tracker = VersionTracker(hass, GitHubClient(async_get_clientsession(hass)))
         self._providers = [
             CoreProvider(hass),
             AddonProvider(hass),
@@ -46,7 +49,7 @@ class UpdateManager:
                 _LOGGER.warning("Provider %s fetch failed: %s", provider.name, result)
                 continue
             for candidate in result:
-                self.tracker.update(candidate)
+                await self.tracker.update(candidate)
                 all_candidates.append((candidate, provider))
 
         await self.tracker.async_save()

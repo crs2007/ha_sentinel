@@ -28,17 +28,27 @@ def _candidate(
 
 def _stable_tracker(candidate: UpdateCandidate) -> VersionTracker:
     tracker = VersionTracker(MagicMock())
-    tracker._tracked = {}
-    tracker.update(candidate)
     key = f"{candidate.provider}:{candidate.slug}"
-    tracker._tracked[key]["first_seen"] = (datetime.now(UTC) - timedelta(days=10)).isoformat()
+    tracker._tracked = {
+        key: {
+            "version": candidate.new_version,
+            "first_seen": (datetime.now(UTC) - timedelta(days=10)).isoformat(),
+            "date_source": "first_seen",
+        }
+    }
     return tracker
 
 
 def _fresh_tracker(candidate: UpdateCandidate) -> VersionTracker:
     tracker = VersionTracker(MagicMock())
-    tracker._tracked = {}
-    tracker.update(candidate)
+    key = f"{candidate.provider}:{candidate.slug}"
+    tracker._tracked = {
+        key: {
+            "version": candidate.new_version,
+            "first_seen": datetime.now(UTC).isoformat(),
+            "date_source": "first_seen",
+        }
+    }
     return tracker
 
 
