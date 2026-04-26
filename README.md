@@ -13,8 +13,8 @@
 [hacs-url]: https://hacs.xyz
 [release-badge]: https://img.shields.io/github/v/release/crs2007/ha_sentinel
 [release-url]: https://github.com/crs2007/ha_sentinel/releases
-[ci-badge]: https://github.com/crs2007/ha_sentinel/actions/workflows/ci.yml/badge.svg
-[ci-url]: https://github.com/crs2007/ha_sentinel/actions/workflows/ci.yml
+[ci-badge]: https://github.com/crs2007/ha_sentinel/actions/workflows/tests.yml/badge.svg
+[ci-url]: https://github.com/crs2007/ha_sentinel/actions/workflows/tests.yml
 [license-badge]: https://img.shields.io/badge/License-MIT-yellow.svg
 [license-url]: https://github.com/crs2007/ha_sentinel/blob/main/LICENSE
 
