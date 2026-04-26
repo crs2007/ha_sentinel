@@ -2,8 +2,8 @@
   "config": {
     "step": {
       "user": {
-        "title": "Add HA Sentinel",
-        "description": "HA Sentinel will monitor your Home Assistant updates and apply them safely based on your policy settings.\n\nAll settings are configurable after setup. The integration starts in **dry-run mode** — it will notify you about available updates without installing anything."
+        "title": "Welcome to HA Sentinel",
+        "description": "HA Sentinel watches your Home Assistant system for updates — Core, Add-ons, and HACS integrations — and applies them automatically using configurable safety rules.\n\n**Safe by default.** The integration starts in notify-only mode: it will tell you about available updates but will not install anything until you choose to enable automatic installs.\n\nClick **Submit** to add the integration, then configure your preferences."
       }
     },
     "abort": {
@@ -12,19 +12,48 @@
   },
   "options": {
     "step": {
-      "init": {
-        "title": "HA Sentinel Options",
+      "operation": {
+        "title": "Step 1 of 3 — What to Monitor",
+        "description": "Choose which parts of your system Sentinel should watch, and whether it should install updates automatically or just notify you.",
         "data": {
-          "dry_run": "Dry-run mode (notify only, no installs)",
-          "backup_before_upgrade": "Create backup before each install (Core and Add-ons)",
-          "enabled_providers": "Enabled providers",
-          "ignore_beta": "Skip beta / pre-release versions",
+          "dry_run": "Notify only (safe mode — no automatic installs)",
+          "enabled_providers": "What should Sentinel monitor?",
+          "backup_before_upgrade": "Create a backup before installing updates"
+        },
+        "data_description": {
+          "dry_run": "When turned on, Sentinel will detect available updates and send you a notification, but will never install anything automatically. Turn this off only when you are ready to let Sentinel install updates on its own.",
+          "enabled_providers": "Select the parts of your system Sentinel should check. **Core & OS** covers Home Assistant itself. **Add-ons** covers your installed add-ons. **HACS Integrations** covers your custom integrations and frontend cards.",
+          "backup_before_upgrade": "Before installing any Core or Add-on update, Sentinel will trigger a full system backup. Strongly recommended if automatic installs are enabled."
+        }
+      },
+      "safety": {
+        "title": "Step 2 of 3 — Safety Rules",
+        "description": "These rules control which updates Sentinel considers safe to install automatically. More restrictive settings mean fewer automatic installs but less risk.",
+        "data": {
+          "ignore_beta": "Skip beta and pre-release versions",
+          "stability_delay_days": "Wait before installing (days)",
           "pause_on_breaking": "Pause on suspected breaking changes",
-          "breaking_threshold": "Breaking-change confidence threshold (0.0–1.0)",
-          "stability_delay_days": "Stability delay (days)",
-          "check_interval_hours": "Check interval (hours)",
-          "allowlist": "Allowlist slugs (empty = all allowed)",
-          "blocklist": "Blocklist slugs"
+          "breaking_threshold": "Breaking-change sensitivity"
+        },
+        "data_description": {
+          "ignore_beta": "When enabled, updates tagged as 'beta', 'rc', 'dev', or 'alpha' are skipped. Recommended for most users who want stable releases only.",
+          "stability_delay_days": "After a new update is detected, Sentinel waits this many days before installing it. A 7-day delay lets the community report any serious bugs before the update reaches you. Set to 0 to install updates as soon as they appear.",
+          "pause_on_breaking": "Sentinel scans update release notes for phrases that suggest the update may require manual steps — like configuration changes or removed features. When detected, the update is held and you receive a notification instead.",
+          "breaking_threshold": "Controls how confident Sentinel must be that an update contains a breaking change before it pauses. Drag left (toward 0) to be more cautious and catch more potential issues. Drag right (toward 1) to require stronger evidence before pausing. The default of 0.5 is a balanced starting point."
+        }
+      },
+      "schedule": {
+        "title": "Step 3 of 3 — Schedule and Filters",
+        "description": "Set how often Sentinel checks for updates. Optionally, restrict which packages it is allowed to install using an allowlist or blocklist.",
+        "data": {
+          "check_interval_hours": "Check for updates every (hours)",
+          "allowlist": "Allowlist — install only these packages",
+          "blocklist": "Blocklist — never install these packages"
+        },
+        "data_description": {
+          "check_interval_hours": "How frequently Sentinel polls for new updates. 6 hours is the default and suits most users. Shorter intervals give faster updates; longer intervals reduce background activity.",
+          "allowlist": "If you enter any package slugs here, Sentinel will **only** automatically install updates for those specific packages — all others are skipped. Leave blank to allow all packages. Enter one slug per line (example: core, mosquitto).",
+          "blocklist": "Packages listed here will **never** be installed automatically by Sentinel, even if all other safety rules pass. Useful for add-ons you want to manage manually. Enter one slug per line."
         }
       }
     }

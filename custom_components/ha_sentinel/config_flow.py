@@ -7,6 +7,10 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.core import callback
 from homeassistant.helpers.selector import (
+    BooleanSelector,
+    NumberSelector,
+    NumberSelectorConfig,
+    NumberSelectorMode,
     SelectSelector,
     SelectSelectorConfig,
     SelectSelectorMode,
@@ -37,6 +41,12 @@ from .const import (
     DOMAIN,
 )
 
+_PROVIDER_OPTIONS = [
+    {"value": "core", "label": "Home Assistant Core & OS"},
+    {"value": "addon", "label": "Add-ons"},
+    {"value": "hacs", "label": "HACS Integrations"},
+]
+
 
 class SentinelConfigFlow(ConfigFlow, domain=DOMAIN):
     VERSION = 1
@@ -48,10 +58,7 @@ class SentinelConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             return self.async_create_entry(title="HA Sentinel", data={})
 
-        return self.async_show_form(
-            step_id="user",
-            description_placeholders={},
-        )
+        return self.async_show_form(step_id="user")
 
     @staticmethod
     @callback
@@ -60,63 +67,154 @@ class SentinelConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class SentinelOptionsFlow(OptionsFlow):
+    """Three-step wizard: Operation → Safety → Schedule & Filters."""
+
+    def __init__(self) -> None:
+        self._options: dict[str, Any] = {}
+
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        return await self.async_step_operation()
+
+    # ------------------------------------------------------------------
+    # Step 1 — What to Monitor
+    # ------------------------------------------------------------------
+
+    async def async_step_operation(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         opts = self.config_entry.options
 
         if user_input is not None:
-            user_input[CONF_ALLOWLIST] = [
-                s.strip() for s in user_input.get(CONF_ALLOWLIST, "").split(",") if s.strip()
-            ]
-            user_input[CONF_BLOCKLIST] = [
-                s.strip() for s in user_input.get(CONF_BLOCKLIST, "").split(",") if s.strip()
-            ]
-            return self.async_create_entry(title="", data=user_input)
+            self._options.update(user_input)
+            return await self.async_step_safety()
 
         schema = vol.Schema(
             {
-                vol.Required(CONF_DRY_RUN, default=opts.get(CONF_DRY_RUN, DEFAULT_DRY_RUN)): bool,
                 vol.Required(
-                    CONF_BACKUP_BEFORE_UPGRADE,
-                    default=opts.get(CONF_BACKUP_BEFORE_UPGRADE, DEFAULT_BACKUP_BEFORE_UPGRADE),
-                ): bool,
+                    CONF_DRY_RUN,
+                    default=opts.get(CONF_DRY_RUN, DEFAULT_DRY_RUN),
+                ): BooleanSelector(),
                 vol.Required(
                     CONF_ENABLED_PROVIDERS,
                     default=opts.get(CONF_ENABLED_PROVIDERS, ALL_PROVIDERS),
                 ): SelectSelector(
                     SelectSelectorConfig(
-                        options=ALL_PROVIDERS,
+                        options=_PROVIDER_OPTIONS,
                         multiple=True,
                         mode=SelectSelectorMode.LIST,
                     )
                 ),
                 vol.Required(
-                    CONF_IGNORE_BETA, default=opts.get(CONF_IGNORE_BETA, DEFAULT_IGNORE_BETA)
-                ): bool,
-                vol.Required(
-                    CONF_PAUSE_ON_BREAKING,
-                    default=opts.get(CONF_PAUSE_ON_BREAKING, DEFAULT_PAUSE_ON_BREAKING),
-                ): bool,
-                vol.Required(
-                    CONF_BREAKING_THRESHOLD,
-                    default=opts.get(CONF_BREAKING_THRESHOLD, DEFAULT_BREAKING_THRESHOLD),
-                ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=1.0)),
-                vol.Required(
-                    CONF_STABILITY_DELAY_DAYS,
-                    default=opts.get(CONF_STABILITY_DELAY_DAYS, DEFAULT_STABILITY_DELAY_DAYS),
-                ): vol.All(vol.Coerce(int), vol.Range(min=0, max=90)),
-                vol.Required(
-                    CONF_CHECK_INTERVAL_HOURS,
-                    default=opts.get(CONF_CHECK_INTERVAL_HOURS, DEFAULT_CHECK_INTERVAL_HOURS),
-                ): vol.All(vol.Coerce(int), vol.Range(min=1, max=168)),
-                vol.Optional(
-                    CONF_ALLOWLIST,
-                    default=",".join(opts.get(CONF_ALLOWLIST, [])),
-                ): TextSelector(TextSelectorConfig(type=TextSelectorType.TEXT)),
-                vol.Optional(
-                    CONF_BLOCKLIST,
-                    default=",".join(opts.get(CONF_BLOCKLIST, [])),
-                ): TextSelector(TextSelectorConfig(type=TextSelectorType.TEXT)),
+                    CONF_BACKUP_BEFORE_UPGRADE,
+                    default=opts.get(CONF_BACKUP_BEFORE_UPGRADE, DEFAULT_BACKUP_BEFORE_UPGRADE),
+                ): BooleanSelector(),
             }
         )
 
-        return self.async_show_form(step_id="init", data_schema=schema)
+        return self.async_show_form(step_id="operation", data_schema=schema)
+
+    # ------------------------------------------------------------------
+    # Step 2 — Safety Rules
+    # ------------------------------------------------------------------
+
+    async def async_step_safety(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        opts = self.config_entry.options
+
+        if user_input is not None:
+            self._options.update(user_input)
+            return await self.async_step_schedule()
+
+        schema = vol.Schema(
+            {
+                vol.Required(
+                    CONF_IGNORE_BETA,
+                    default=opts.get(CONF_IGNORE_BETA, DEFAULT_IGNORE_BETA),
+                ): BooleanSelector(),
+                vol.Required(
+                    CONF_STABILITY_DELAY_DAYS,
+                    default=opts.get(CONF_STABILITY_DELAY_DAYS, DEFAULT_STABILITY_DELAY_DAYS),
+                ): vol.All(
+                    NumberSelector(
+                        NumberSelectorConfig(
+                            min=0,
+                            max=90,
+                            step=1,
+                            mode=NumberSelectorMode.SLIDER,
+                            unit_of_measurement="days",
+                        )
+                    ),
+                    vol.Coerce(int),
+                ),
+                vol.Required(
+                    CONF_PAUSE_ON_BREAKING,
+                    default=opts.get(CONF_PAUSE_ON_BREAKING, DEFAULT_PAUSE_ON_BREAKING),
+                ): BooleanSelector(),
+                vol.Required(
+                    CONF_BREAKING_THRESHOLD,
+                    default=opts.get(CONF_BREAKING_THRESHOLD, DEFAULT_BREAKING_THRESHOLD),
+                ): vol.All(
+                    NumberSelector(
+                        NumberSelectorConfig(
+                            min=0.0,
+                            max=1.0,
+                            step=0.05,
+                            mode=NumberSelectorMode.SLIDER,
+                        )
+                    ),
+                    vol.Coerce(float),
+                ),
+            }
+        )
+
+        return self.async_show_form(step_id="safety", data_schema=schema)
+
+    # ------------------------------------------------------------------
+    # Step 3 — Schedule & Filters (final; writes options entry)
+    # ------------------------------------------------------------------
+
+    async def async_step_schedule(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        opts = self.config_entry.options
+
+        if user_input is not None:
+            for key in (CONF_ALLOWLIST, CONF_BLOCKLIST):
+                raw = user_input.get(key, "")
+                user_input[key] = [s.strip() for s in raw.splitlines() if s.strip()]
+            self._options.update(user_input)
+            return self.async_create_entry(title="", data=self._options)
+
+        allowlist_display = "\n".join(opts.get(CONF_ALLOWLIST, []))
+        blocklist_display = "\n".join(opts.get(CONF_BLOCKLIST, []))
+
+        schema = vol.Schema(
+            {
+                vol.Required(
+                    CONF_CHECK_INTERVAL_HOURS,
+                    default=opts.get(CONF_CHECK_INTERVAL_HOURS, DEFAULT_CHECK_INTERVAL_HOURS),
+                ): vol.All(
+                    NumberSelector(
+                        NumberSelectorConfig(
+                            min=1,
+                            max=168,
+                            step=1,
+                            mode=NumberSelectorMode.SLIDER,
+                            unit_of_measurement="hours",
+                        )
+                    ),
+                    vol.Coerce(int),
+                ),
+                vol.Optional(
+                    CONF_ALLOWLIST,
+                    default=allowlist_display,
+                ): TextSelector(TextSelectorConfig(type=TextSelectorType.TEXT, multiline=True)),
+                vol.Optional(
+                    CONF_BLOCKLIST,
+                    default=blocklist_display,
+                ): TextSelector(TextSelectorConfig(type=TextSelectorType.TEXT, multiline=True)),
+            }
+        )
+
+        return self.async_show_form(step_id="schedule", data_schema=schema)
