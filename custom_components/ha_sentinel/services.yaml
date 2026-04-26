@@ -1,0 +1,19 @@
+check_now:
+  name: Check Now
+  description: Fetch available updates and evaluate policy without installing.
+
+install_now:
+  name: Install Now
+  description: Force-install a specific update by slug, bypassing dry-run.
+  fields:
+    slug:
+      name: Slug
+      description: The slug identifier of the update to install.
+      required: true
+      example: core_ssh
+      selector:
+        text:
+
+dismiss:
+  name: Dismiss Notification
+  description: Dismiss the HA Sentinel summary notification.

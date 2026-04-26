@@ -1,0 +1,6 @@
+{
+  "name": "HA Sentinel",
+  "type": "integration",
+  "render_readme": true,
+  "homeassistant": "2023.4.0"
+}

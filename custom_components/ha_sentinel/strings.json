@@ -1,0 +1,52 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Add HA Sentinel",
+        "description": "HA Sentinel will monitor your Home Assistant updates and apply them safely based on your policy settings.\n\nAll settings are configurable after setup. The integration starts in **dry-run mode** — it will notify you about available updates without installing anything."
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Only one HA Sentinel instance is allowed."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "HA Sentinel Options",
+        "data": {
+          "dry_run": "Dry-run mode (notify only, no installs)",
+          "backup_before_upgrade": "Create backup before each install (Core and Add-ons)",
+          "enabled_providers": "Enabled providers",
+          "ignore_beta": "Skip beta / pre-release versions",
+          "pause_on_breaking": "Pause on suspected breaking changes",
+          "breaking_threshold": "Breaking-change confidence threshold (0.0–1.0)",
+          "stability_delay_days": "Stability delay (days)",
+          "check_interval_hours": "Check interval (hours)",
+          "allowlist": "Allowlist slugs (empty = all allowed)",
+          "blocklist": "Blocklist slugs"
+        }
+      }
+    }
+  },
+  "services": {
+    "check_now": {
+      "name": "Check Now",
+      "description": "Fetch available updates and evaluate policy without installing."
+    },
+    "install_now": {
+      "name": "Install Now",
+      "description": "Force-install a specific update by slug, bypassing dry-run.",
+      "fields": {
+        "slug": {
+          "name": "Slug",
+          "description": "The slug identifier of the update to install."
+        }
+      }
+    },
+    "dismiss": {
+      "name": "Dismiss Notification",
+      "description": "Dismiss the HA Sentinel summary notification."
+    }
+  }
+}
