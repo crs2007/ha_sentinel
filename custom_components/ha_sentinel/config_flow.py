@@ -4,9 +4,16 @@ from __future__ import annotations
 from typing import Any
 
 import voluptuous as vol
-from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
+from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.core import callback
-from homeassistant.data_entry_flow import FlowResult
+from homeassistant.helpers.selector import (
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
+    TextSelector,
+    TextSelectorConfig,
+    TextSelectorType,
+)
 
 from .const import (
     ALL_PROVIDERS,
@@ -34,7 +41,7 @@ from .const import (
 class SentinelConfigFlow(ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
-    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if self._async_current_entries():
             return self.async_abort(reason="single_instance_allowed")
 
@@ -49,17 +56,20 @@ class SentinelConfigFlow(ConfigFlow, domain=DOMAIN):
     @staticmethod
     @callback
     def async_get_options_flow(config_entry: ConfigEntry) -> "SentinelOptionsFlow":
-        return SentinelOptionsFlow(config_entry)
+        return SentinelOptionsFlow()
 
 
 class SentinelOptionsFlow(OptionsFlow):
-    def __init__(self, config_entry: ConfigEntry) -> None:
-        self.config_entry = config_entry
-
-    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         opts = self.config_entry.options
 
         if user_input is not None:
+            user_input[CONF_ALLOWLIST] = [
+                s.strip() for s in user_input.get(CONF_ALLOWLIST, "").split(",") if s.strip()
+            ]
+            user_input[CONF_BLOCKLIST] = [
+                s.strip() for s in user_input.get(CONF_BLOCKLIST, "").split(",") if s.strip()
+            ]
             return self.async_create_entry(title="", data=user_input)
 
         schema = vol.Schema(
@@ -72,7 +82,13 @@ class SentinelOptionsFlow(OptionsFlow):
                 vol.Required(
                     CONF_ENABLED_PROVIDERS,
                     default=opts.get(CONF_ENABLED_PROVIDERS, ALL_PROVIDERS),
-                ): vol.All([vol.In(ALL_PROVIDERS)]),
+                ): SelectSelector(
+                    SelectSelectorConfig(
+                        options=ALL_PROVIDERS,
+                        multiple=True,
+                        mode=SelectSelectorMode.LIST,
+                    )
+                ),
                 vol.Required(
                     CONF_IGNORE_BETA, default=opts.get(CONF_IGNORE_BETA, DEFAULT_IGNORE_BETA)
                 ): bool,
@@ -92,8 +108,14 @@ class SentinelOptionsFlow(OptionsFlow):
                     CONF_CHECK_INTERVAL_HOURS,
                     default=opts.get(CONF_CHECK_INTERVAL_HOURS, DEFAULT_CHECK_INTERVAL_HOURS),
                 ): vol.All(vol.Coerce(int), vol.Range(min=1, max=168)),
-                vol.Optional(CONF_ALLOWLIST, default=opts.get(CONF_ALLOWLIST, [])): [str],
-                vol.Optional(CONF_BLOCKLIST, default=opts.get(CONF_BLOCKLIST, [])): [str],
+                vol.Optional(
+                    CONF_ALLOWLIST,
+                    default=",".join(opts.get(CONF_ALLOWLIST, [])),
+                ): TextSelector(TextSelectorConfig(type=TextSelectorType.TEXT)),
+                vol.Optional(
+                    CONF_BLOCKLIST,
+                    default=",".join(opts.get(CONF_BLOCKLIST, [])),
+                ): TextSelector(TextSelectorConfig(type=TextSelectorType.TEXT)),
             }
         )
 
