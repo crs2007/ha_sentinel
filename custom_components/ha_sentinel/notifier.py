@@ -20,12 +20,14 @@ def _days_remaining(seconds: int | None) -> str:
 
 
 def build_summary(results: list[tuple[UpdateCandidate, Decision, bool | None]]) -> str:
-    installed, delayed, skipped, notify_only = [], [], [], []
+    installed, failed, delayed, skipped, notify_only = [], [], [], [], []
 
     for candidate, decision, success in results:
         label = f"{candidate.name} {candidate.current_version}→{candidate.new_version}"
         if decision.action == "INSTALL" and success:
             installed.append(label)
+        elif decision.action == "INSTALL" and not success:
+            failed.append(label)
         elif decision.action == "DELAY":
             delayed.append(f"{candidate.name} ({_days_remaining(decision.delay_remaining_seconds)} remaining)")
         elif decision.action == "SKIP":
@@ -37,6 +39,8 @@ def build_summary(results: list[tuple[UpdateCandidate, Decision, bool | None]]) 
     lines = []
     if installed:
         lines.append(f"✔ Installed ({len(installed)}): {', '.join(installed)}")
+    if failed:
+        lines.append(f"✘ Failed ({len(failed)}): {', '.join(failed)}")
     if notify_only:
         lines.append(f"ℹ Available ({len(notify_only)}): {', '.join(notify_only)}")
     if delayed:
