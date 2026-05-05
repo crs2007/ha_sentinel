@@ -68,7 +68,14 @@ class UpdateManager:
                     _LOGGER.info("Installed %s %s", candidate.name, candidate.new_version)
                 except Exception as exc:  # noqa: BLE001
                     success = False
-                    _LOGGER.error("Failed to install %s: %s", candidate.name, exc)
+                    _LOGGER.error(
+                        "Failed to install %s/%s v%s → v%s: %s",
+                        candidate.provider,
+                        candidate.slug,
+                        candidate.current_version,
+                        candidate.new_version,
+                        exc,
+                    )
 
             results.append((candidate, decision, success))
 

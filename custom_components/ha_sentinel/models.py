@@ -38,6 +38,11 @@ class SentinelConfig:
     allowlist: list[str] = field(default_factory=list)
     blocklist: list[str] = field(default_factory=list)
     backup_before_upgrade: bool = True
+    schedule_enabled: bool = False
+    schedule_time: str = "02:00"
+    schedule_days: list[str] = field(
+        default_factory=lambda: ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+    )
 
     @classmethod
     def from_options(cls, options: dict) -> "SentinelConfig":
@@ -52,4 +57,9 @@ class SentinelConfig:
             allowlist=options.get("allowlist", []),
             blocklist=options.get("blocklist", []),
             backup_before_upgrade=options.get("backup_before_upgrade", True),
+            schedule_enabled=options.get("schedule_enabled", False),
+            schedule_time=options.get("schedule_time", "02:00"),
+            schedule_days=options.get(
+                "schedule_days", ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+            ),
         )

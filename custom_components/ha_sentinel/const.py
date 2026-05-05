@@ -14,6 +14,9 @@ CONF_CHECK_INTERVAL_HOURS = "check_interval_hours"
 CONF_ALLOWLIST = "allowlist"
 CONF_BLOCKLIST = "blocklist"
 CONF_BACKUP_BEFORE_UPGRADE = "backup_before_upgrade"
+CONF_SCHEDULE_ENABLED = "schedule_enabled"
+CONF_SCHEDULE_TIME = "schedule_time"
+CONF_SCHEDULE_DAYS = "schedule_days"
 
 PROVIDER_CORE = "core"
 PROVIDER_ADDON = "addon"
@@ -30,6 +33,9 @@ DEFAULT_CHECK_INTERVAL_HOURS = 6
 DEFAULT_ALLOWLIST: list[str] = []
 DEFAULT_BLOCKLIST: list[str] = []
 DEFAULT_BACKUP_BEFORE_UPGRADE = True
+DEFAULT_SCHEDULE_ENABLED: bool = False
+DEFAULT_SCHEDULE_TIME: str = "02:00"
+DEFAULT_SCHEDULE_DAYS: list[str] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 
 BREAKING_KEYWORDS: dict[str, float] = {
     "breaking change": 0.6,

@@ -43,14 +43,20 @@
         }
       },
       "schedule": {
-        "title": "Step 3 of 3 — Schedule and Filters",
-        "description": "Set how often Sentinel checks for updates. Optionally, restrict which packages it is allowed to install using an allowlist or blocklist.",
+        "title": "Step 3 of 3 — Maintenance Window & Filters",
+        "description": "Optionally restrict installs to a maintenance window so updates never interrupt critical operations. Set how often Sentinel checks for updates and filter which packages it may install.",
         "data": {
+          "schedule_enabled": "Enable maintenance window",
+          "schedule_time": "Install time",
+          "schedule_days": "Install on these days",
           "check_interval_hours": "Check for updates every (hours)",
           "allowlist": "Allowlist — install only these packages",
           "blocklist": "Blocklist — never install these packages"
         },
         "data_description": {
+          "schedule_enabled": "When enabled, Sentinel will only install updates during the configured maintenance window. Check cycles still run on their normal schedule to detect new updates.",
+          "schedule_time": "The time of day (in your Home Assistant timezone) when Sentinel will attempt to install pending updates.",
+          "schedule_days": "Days of the week on which Sentinel is allowed to perform installs.",
           "check_interval_hours": "How frequently Sentinel polls for new updates. 6 hours is the default and suits most users. Shorter intervals give faster updates; longer intervals reduce background activity.",
           "allowlist": "If you enter any package slugs here, Sentinel will **only** automatically install updates for those specific packages — all others are skipped. Leave blank to allow all packages. Enter one slug per line (example: core, mosquitto).",
           "blocklist": "Packages listed here will **never** be installed automatically by Sentinel, even if all other safety rules pass. Useful for add-ons you want to manage manually. Enter one slug per line."

@@ -17,6 +17,8 @@ from homeassistant.helpers.selector import (
     TextSelector,
     TextSelectorConfig,
     TextSelectorType,
+    TimeSelector,
+    TimeSelectorConfig,
 )
 
 from .const import (
@@ -30,6 +32,9 @@ from .const import (
     CONF_ENABLED_PROVIDERS,
     CONF_IGNORE_BETA,
     CONF_PAUSE_ON_BREAKING,
+    CONF_SCHEDULE_DAYS,
+    CONF_SCHEDULE_ENABLED,
+    CONF_SCHEDULE_TIME,
     CONF_STABILITY_DELAY_DAYS,
     DEFAULT_BACKUP_BEFORE_UPGRADE,
     DEFAULT_BREAKING_THRESHOLD,
@@ -37,6 +42,9 @@ from .const import (
     DEFAULT_DRY_RUN,
     DEFAULT_IGNORE_BETA,
     DEFAULT_PAUSE_ON_BREAKING,
+    DEFAULT_SCHEDULE_DAYS,
+    DEFAULT_SCHEDULE_ENABLED,
+    DEFAULT_SCHEDULE_TIME,
     DEFAULT_STABILITY_DELAY_DAYS,
     DOMAIN,
 )
@@ -45,6 +53,16 @@ _PROVIDER_OPTIONS = [
     {"value": "core", "label": "Home Assistant Core & OS"},
     {"value": "addon", "label": "Add-ons"},
     {"value": "hacs", "label": "HACS Integrations"},
+]
+
+_DAY_OPTIONS = [
+    {"value": "mon", "label": "Monday"},
+    {"value": "tue", "label": "Tuesday"},
+    {"value": "wed", "label": "Wednesday"},
+    {"value": "thu", "label": "Thursday"},
+    {"value": "fri", "label": "Friday"},
+    {"value": "sat", "label": "Saturday"},
+    {"value": "sun", "label": "Sunday"},
 ]
 
 
@@ -191,6 +209,24 @@ class SentinelOptionsFlow(OptionsFlow):
 
         schema = vol.Schema(
             {
+                vol.Required(
+                    CONF_SCHEDULE_ENABLED,
+                    default=opts.get(CONF_SCHEDULE_ENABLED, DEFAULT_SCHEDULE_ENABLED),
+                ): BooleanSelector(),
+                vol.Required(
+                    CONF_SCHEDULE_TIME,
+                    default=opts.get(CONF_SCHEDULE_TIME, DEFAULT_SCHEDULE_TIME),
+                ): TimeSelector(TimeSelectorConfig()),
+                vol.Required(
+                    CONF_SCHEDULE_DAYS,
+                    default=opts.get(CONF_SCHEDULE_DAYS, DEFAULT_SCHEDULE_DAYS),
+                ): SelectSelector(
+                    SelectSelectorConfig(
+                        options=_DAY_OPTIONS,
+                        multiple=True,
+                        mode=SelectSelectorMode.LIST,
+                    )
+                ),
                 vol.Required(
                     CONF_CHECK_INTERVAL_HOURS,
                     default=opts.get(CONF_CHECK_INTERVAL_HOURS, DEFAULT_CHECK_INTERVAL_HOURS),
