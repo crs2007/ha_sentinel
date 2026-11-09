@@ -28,6 +28,7 @@ class SentinelCoordinator(DataUpdateCoordinator):
         self.config = config
         self.manager = UpdateManager(hass, config)
         self._schedule_unsub: Callable[[], None] | None = None
+        self._first_refresh_done = False
 
         super().__init__(
             hass,
@@ -105,5 +106,8 @@ class SentinelCoordinator(DataUpdateCoordinator):
     async def _async_update_data(self):
         # When schedule is active, polling cycles are check-only (no installs).
         # The scheduled listener handles actual installs.
-        install = not self.config.schedule_enabled
+        # The first refresh (setup / restart / options reload) is always check-only
+        # so startup never blocks on, or triggers, installs.
+        install = not self.config.schedule_enabled and self._first_refresh_done
+        self._first_refresh_done = True
         return await self.manager.run_cycle(install=install)

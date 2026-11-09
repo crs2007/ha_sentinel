@@ -48,8 +48,11 @@ async def test_poll_installs_when_schedule_disabled(mock_hass):
     config = _config(schedule_enabled=False)
     coordinator, _ = _make_coordinator(mock_hass, config)
 
-    await coordinator._async_update_data()
+    await coordinator._async_update_data()  # first refresh is check-only
+    coordinator.manager.run_cycle.assert_called_once_with(install=False)
 
+    coordinator.manager.run_cycle.reset_mock()
+    await coordinator._async_update_data()
     coordinator.manager.run_cycle.assert_called_once_with(install=True)
 
 
