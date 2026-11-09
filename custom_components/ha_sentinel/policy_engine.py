@@ -14,6 +14,12 @@ def decide(
     if candidate.is_beta and config.ignore_beta:
         return Decision("SKIP", "Beta release filtered")
 
+    if _matches(candidate, config.blocklist):
+        return Decision("SKIP", "On blocklist")
+
+    if config.allowlist and not _matches(candidate, config.allowlist):
+        return Decision("SKIP", "Not on allowlist")
+
     if not tracker.is_stable(candidate, config.stability_delay_days):
         remaining = tracker.delay_remaining_seconds(candidate, config.stability_delay_days)
         return Decision("DELAY", "Stability window not met", delay_remaining_seconds=remaining)
@@ -27,13 +33,17 @@ def decide(
             breaking_score=bscore,
         )
 
-    if config.dry_run or candidate.provider not in config.enabled_providers:
-        return Decision("NOTIFY_ONLY", "Dry-run mode", breaking_score=bscore)
+    if candidate.provider not in config.enabled_providers:
+        return Decision("NOTIFY_ONLY", "Provider not enabled", breaking_score=bscore)
 
-    if candidate.slug in config.blocklist:
-        return Decision("SKIP", "On blocklist", breaking_score=bscore)
-
-    if config.allowlist and candidate.slug not in config.allowlist:
-        return Decision("SKIP", "Not on allowlist", breaking_score=bscore)
+    if config.dry_run:
+        return Decision("NOTIFY_ONLY", "Would install (dry-run)", breaking_score=bscore)
 
     return Decision("INSTALL", "All checks passed", breaking_score=bscore)
+
+
+def _matches(candidate: UpdateCandidate, entries) -> bool:
+    """Case-insensitive match on `slug` or the unambiguous `provider:slug` form."""
+    slug = candidate.slug.casefold()
+    qualified = f"{candidate.provider}:{slug}"
+    return any(str(e).casefold() in (slug, qualified) for e in entries)

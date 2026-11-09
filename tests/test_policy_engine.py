@@ -168,3 +168,28 @@ def test_all_checks_pass_gives_install():
     d = decide(c, _config(), _stable_tracker(c))
     assert d.action == "INSTALL"
     assert d.reason == "All checks passed"
+
+
+def test_blocklist_wins_over_dry_run_and_delay():
+    c = _candidate()
+    cfg = SentinelConfig(dry_run=True, blocklist=["core_ssh"])
+    assert decide(c, cfg, _stable_tracker(c)).action == "SKIP"
+    assert decide(c, cfg, _fresh_tracker(c)).action == "SKIP"
+
+
+def test_blocklist_is_case_insensitive_and_supports_provider_prefix():
+    c = _candidate(slug="Owner/Repo", provider="hacs")
+    t = _stable_tracker(c)
+    assert decide(c, SentinelConfig(blocklist=["owner/repo"]), t).action == "SKIP"
+    assert decide(c, SentinelConfig(blocklist=["hacs:owner/repo"]), t).action == "SKIP"
+    assert decide(c, SentinelConfig(blocklist=["addon:owner/repo"]), t).action != "SKIP"
+
+
+def test_dry_run_and_disabled_provider_reasons_differ():
+    c = _candidate()
+    t = _stable_tracker(c)
+    dry = decide(c, SentinelConfig(dry_run=True, enabled_providers=["addon"]), t)
+    off = decide(c, SentinelConfig(dry_run=False, enabled_providers=[]), t)
+    assert dry.action == off.action == "NOTIFY_ONLY"
+    assert dry.reason == "Would install (dry-run)"
+    assert off.reason == "Provider not enabled"
