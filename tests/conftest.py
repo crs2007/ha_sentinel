@@ -8,8 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 
 
-@pytest.fixture
-def event_loop(socket_enabled):  # socket_enabled re-enables sockets for event loop internals
+def _event_loop(socket_enabled):  # socket_enabled re-enables sockets for event loop internals
     """Event loop fixture that works on Windows with pytest-socket.
 
     Both ProactorEventLoop and SelectorEventLoop call socket.socketpair() during
@@ -22,6 +21,12 @@ def event_loop(socket_enabled):  # socket_enabled re-enables sockets for event l
         loop = asyncio.new_event_loop()
     yield loop
     loop.close()
+
+
+if sys.platform == "win32":
+    # Only override the plugin's event_loop on Windows; on Linux the plugin's own
+    # fixture cleans up HA's shutdown threads correctly.
+    event_loop = pytest.fixture(_event_loop)
 
 
 @pytest.fixture
