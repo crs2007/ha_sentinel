@@ -106,7 +106,11 @@ class UpdateManager:
 
     async def _install_one(self, candidate: UpdateCandidate, provider) -> bool:
         if self.config.backup_before_upgrade and candidate.backup_supported:
-            await backup.create_backup(self.hass, candidate)
+            if not await backup.create_backup(self.hass, candidate):
+                _LOGGER.error(
+                    "Skipping install of %s/%s: backup failed", candidate.provider, candidate.slug
+                )
+                return False
         try:
             await provider.install(candidate)
             _LOGGER.info("Installed %s %s", candidate.name, candidate.new_version)

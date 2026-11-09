@@ -5,6 +5,7 @@ import logging
 import os
 from typing import TYPE_CHECKING
 
+import aiohttp
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .models import UpdateCandidate
@@ -34,8 +35,7 @@ async def create_backup(hass: "HomeAssistant", candidate: UpdateCandidate) -> bo
     """Create a targeted partial backup before installing a candidate.
 
     Returns True if the backup completed successfully, False otherwise.
-    A failed backup is logged as a warning but does NOT abort the install —
-    that decision belongs to the caller.
+    A failed backup is logged as a warning; the caller aborts the install.
     """
     token = os.environ.get("SUPERVISOR_TOKEN")
     if not token:
@@ -53,6 +53,7 @@ async def create_backup(hass: "HomeAssistant", candidate: UpdateCandidate) -> bo
             BACKUP_ENDPOINT,
             headers={"Authorization": f"Bearer {token}"},
             json=payload,
+            timeout=aiohttp.ClientTimeout(total=1800),
         )
         if resp.status == 200:
             _LOGGER.info("Backup created before upgrading %s to %s", candidate.name, candidate.new_version)

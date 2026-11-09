@@ -46,3 +46,16 @@ async def test_one_restart_install_last_and_others_deferred():
         await m.run_cycle(install=True)
 
     assert calls == ["supervisor", "x", "core"]
+
+
+@pytest.mark.asyncio
+async def test_backup_failure_blocks_install():
+    p = MagicMock()
+    p.install = AsyncMock()
+    with patch.object(um, "GitHubClient"), patch.object(um, "VersionTracker"), \
+         patch.object(um, "async_get_clientsession"), \
+         patch.object(um.backup, "create_backup", new=AsyncMock(return_value=False)):
+        m = um.UpdateManager(MagicMock(), SentinelConfig(backup_before_upgrade=True))
+        c = UpdateCandidate(provider="addon", slug="x", name="x", current_version="1", new_version="2", backup_supported=True)
+        assert await m._install_one(c, p) is False
+    p.install.assert_not_awaited()
