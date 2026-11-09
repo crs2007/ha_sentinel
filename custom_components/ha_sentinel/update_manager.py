@@ -130,20 +130,30 @@ class UpdateManager:
         """Fetch and decide without installing."""
         return await self.run_cycle(install=False)
 
-    async def install_slug(self, slug: str) -> bool:
-        """Force-install a specific slug, bypassing dry_run."""
-        available = [p for p in self._providers if p.available]
-        fetch_results = await asyncio.gather(*[p.fetch_candidates() for p in available], return_exceptions=True)
+    async def install_slug(self, slug: str, provider_name: str | None = None) -> None:
+        """Install a specific slug, bypassing dry-run and the stability delay only.
 
+        Blocklist and pre-update backup are still enforced. Raises
+        ServiceValidationError when the slug is unknown, blocked, or fails.
+        """
+        from homeassistant.exceptions import ServiceValidationError
+
+        if slug in self.config.blocklist:
+            raise ServiceValidationError(f"{slug} is on the blocklist")
+
+        available = [
+            p for p in self._providers
+            if p.available and (provider_name is None or p.name == provider_name)
+        ]
+        fetch_results = await asyncio.gather(
+            *[p.fetch_candidates() for p in available], return_exceptions=True
+        )
         for provider, result in zip(available, fetch_results):
             if isinstance(result, Exception):
                 continue
             for candidate in result:
                 if candidate.slug == slug:
-                    try:
-                        await provider.install(candidate)
-                        return True
-                    except Exception as exc:  # noqa: BLE001
-                        _LOGGER.error("install_slug %s failed: %s", slug, exc)
-                        return False
-        return False
+                    if not await self._install_one(candidate, provider):
+                        raise ServiceValidationError(f"Install of {slug} failed; see log")
+                    return
+        raise ServiceValidationError(f"No pending update found for {slug}")

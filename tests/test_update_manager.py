@@ -59,3 +59,17 @@ async def test_backup_failure_blocks_install():
         c = UpdateCandidate(provider="addon", slug="x", name="x", current_version="1", new_version="2", backup_supported=True)
         assert await m._install_one(c, p) is False
     p.install.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_install_slug_blocklisted_and_unknown_raise():
+    from homeassistant.exceptions import ServiceValidationError
+
+    with patch.object(um, "GitHubClient"), patch.object(um, "VersionTracker"), \
+         patch.object(um, "async_get_clientsession"):
+        m = um.UpdateManager(MagicMock(), SentinelConfig(blocklist=["bad"]))
+        m._providers = []
+        with pytest.raises(ServiceValidationError):
+            await m.install_slug("bad")
+        with pytest.raises(ServiceValidationError):
+            await m.install_slug("nothing")

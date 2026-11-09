@@ -4,7 +4,7 @@ check_now:
 
 install_now:
   name: Install Now
-  description: Force-install a specific update by slug, bypassing dry-run.
+  description: Admin only. Install a specific update by slug now, bypassing dry-run and the stability delay. The blocklist and pre-update backup are still enforced.
   fields:
     slug:
       name: Slug
@@ -13,6 +13,16 @@ install_now:
       example: core_ssh
       selector:
         text:
+    provider:
+      name: Provider
+      description: Optional provider to disambiguate the slug.
+      required: false
+      selector:
+        select:
+          options:
+            - core
+            - addon
+            - hacs
 
 dismiss:
   name: Dismiss Notification

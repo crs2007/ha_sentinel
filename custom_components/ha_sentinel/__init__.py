@@ -4,8 +4,11 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.service import async_register_admin_service
 
 from .const import DOMAIN, SERVICE_CHECK_NOW, SERVICE_INSTALL_NOW
 from .coordinator import SentinelCoordinator
@@ -32,12 +35,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await coordinator.manager.check_now()
 
     async def handle_install_now(call: ServiceCall) -> None:
-        slug = call.data.get("slug", "")
-        if slug:
-            await coordinator.manager.install_slug(slug)
+        await coordinator.manager.install_slug(
+            call.data["slug"], call.data.get("provider")
+        )
 
     hass.services.async_register(DOMAIN, SERVICE_CHECK_NOW, handle_check_now)
-    hass.services.async_register(DOMAIN, SERVICE_INSTALL_NOW, handle_install_now)
+    async_register_admin_service(
+        hass,
+        DOMAIN,
+        SERVICE_INSTALL_NOW,
+        handle_install_now,
+        schema=vol.Schema(
+            {
+                vol.Required("slug"): cv.string,
+                vol.Optional("provider"): vol.In(["core", "addon", "hacs"]),
+            }
+        ),
+    )
 
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     entry.async_on_unload(coordinator.async_unsubscribe_schedule)
