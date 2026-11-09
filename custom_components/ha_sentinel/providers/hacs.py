@@ -50,7 +50,10 @@ class HacsProvider(UpdateProvider):
                     current_version=current,
                     new_version=latest,
                     release_notes=None,
-                    release_url=f"https://github.com/{getattr(repo.data, 'full_name', '')}",
+                    release_url=(
+                        f"https://github.com/{getattr(repo.data, 'full_name', '')}"
+                        f"/releases/tag/{latest}"
+                    ),
                     is_beta=_is_beta(latest),
                     backup_supported=False,
                 )

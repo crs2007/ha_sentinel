@@ -15,6 +15,9 @@ if TYPE_CHECKING:
     from .github_client import GitHubClient
 
 
+GITHUB_RETRY_INTERVAL = timedelta(hours=24)
+
+
 def _parse_version(v: str):
     try:
         from packaging.version import Version
@@ -69,16 +72,30 @@ class VersionTracker:
                 "version": candidate.new_version,
                 "first_seen": resolved["date"],
                 "date_source": resolved["source"],
+                "github_checked_at": datetime.now(UTC).isoformat(),
             }
         elif _version_lt(candidate.new_version, record["version"]):
             self._tracked.pop(key, None)
         else:
             # Same version: retry GitHub only if we're still using first_seen
-            if record.get("date_source") != "github" and self._github_client:
+            if (
+                record.get("date_source") != "github"
+                and self._github_client
+                and self._github_retry_due(record)
+            ):
+                record["github_checked_at"] = datetime.now(UTC).isoformat()
                 resolved = await self._resolve_date(candidate)
                 if resolved["source"] == "github":
                     record["first_seen"] = resolved["date"]
                     record["date_source"] = "github"
+
+    @staticmethod
+    def _github_retry_due(record: dict) -> bool:
+        """Negative lookups are cached for 24h to protect the GitHub rate limit."""
+        checked = record.get("github_checked_at")
+        if not checked:
+            return True
+        return datetime.now(UTC) - datetime.fromisoformat(checked) >= GITHUB_RETRY_INTERVAL
 
     async def _resolve_date(self, candidate: UpdateCandidate) -> dict:
         """Return {"date": ISO str, "source": "github" | "first_seen"}."""

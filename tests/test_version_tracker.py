@@ -204,7 +204,10 @@ async def test_same_version_retries_github_when_source_is_first_seen():
     await tracker.update(c)
     assert tracker.get_record(c)["date_source"] == "first_seen"
 
-    # Second update: GitHub now succeeds
+    # Second update, after the 24h back-off has elapsed: GitHub now succeeds
+    tracker.get_record(c)["github_checked_at"] = (
+        datetime.now(UTC) - timedelta(hours=25)
+    ).isoformat()
     published = datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
     gh.get_release_date = AsyncMock(return_value=published)
     await tracker.update(c)
@@ -250,3 +253,24 @@ async def test_no_release_url_falls_back_to_first_seen():
     record = tracker.get_record(c)
     assert record["date_source"] == "first_seen"
     gh.get_release_date.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_github_negative_lookup_backs_off_for_24h(mock_hass):
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    from custom_components.ha_sentinel.models import UpdateCandidate
+    from custom_components.ha_sentinel.version_tracker import VersionTracker
+
+    gh = MagicMock()
+    gh.get_release_date = AsyncMock(return_value=None)
+    with patch("custom_components.ha_sentinel.version_tracker.Store"):
+        t = VersionTracker(mock_hass, gh)
+    c = UpdateCandidate(
+        provider="hacs", slug="a/b", name="b", current_version="1", new_version="2",
+        release_url="https://github.com/a/b/releases/tag/2",
+    )
+    await t.update(c)  # new record: one lookup
+    await t.update(c)  # same version, within 24h: no lookup
+    await t.update(c)
+    assert gh.get_release_date.await_count == 1
