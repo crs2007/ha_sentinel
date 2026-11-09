@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from ..models import UpdateCandidate
-from .base import UpdateProvider
+from .base import UpdateProvider, supervisor_post
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -69,12 +69,12 @@ class CoreProvider(UpdateProvider):
 
     async def install(self, candidate: UpdateCandidate) -> None:
         session = async_get_clientsession(self.hass)
-        headers = {"Authorization": f"Bearer {self._token}"}
         path_map = {
             "core": "/core/update",
             "os": "/os/update",
             "supervisor": "/supervisor/update",
         }
         path = path_map.get(candidate.slug)
-        if path:
-            await session.post(f"{SUPERVISOR_BASE}{path}", headers=headers)
+        if path is None:
+            raise ValueError(f"Unknown core update slug: {candidate.slug!r}")
+        await supervisor_post(session, f"{SUPERVISOR_BASE}{path}", self._token)

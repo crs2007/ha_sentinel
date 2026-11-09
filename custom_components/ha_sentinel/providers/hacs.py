@@ -64,10 +64,8 @@ class HacsProvider(UpdateProvider):
     async def install(self, candidate: UpdateCandidate) -> None:
         hacs = self._get_hacs()
         if hacs is None:
-            return
-        try:
-            repo = hacs.repositories.get_by_full_name(candidate.slug)
-            if repo:
-                await repo.async_install()
-        except Exception:  # noqa: BLE001
-            pass
+            raise RuntimeError("HACS is not available")
+        repo = hacs.repositories.get_by_full_name(candidate.slug)
+        if repo is None:
+            raise ValueError(f"HACS repository not found: {candidate.slug}")
+        await repo.async_install()

@@ -71,8 +71,9 @@ async def test_fetch_skips_repos_without_update():
 
 
 @pytest.mark.asyncio
-async def test_install_no_op_when_hacs_missing():
+async def test_install_raises_when_hacs_missing():
     from custom_components.ha_sentinel.models import UpdateCandidate  # noqa: PLC0415
     provider = HacsProvider(_hass_without_hacs())
     c = UpdateCandidate(provider="hacs", slug="x", name="X", current_version="1.0", new_version="1.1")
-    await provider.install(c)  # should not raise
+    with pytest.raises(RuntimeError):
+        await provider.install(c)

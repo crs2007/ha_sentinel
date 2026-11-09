@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from ..models import UpdateCandidate
-from .base import UpdateProvider
+from .base import UpdateProvider, supervisor_post
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -65,8 +65,6 @@ class AddonProvider(UpdateProvider):
 
     async def install(self, candidate: UpdateCandidate) -> None:
         session = async_get_clientsession(self.hass)
-        headers = {"Authorization": f"Bearer {self._token}"}
-        await session.post(
-            f"{SUPERVISOR_BASE}/addons/{candidate.slug}/update",
-            headers=headers,
+        await supervisor_post(
+            session, f"{SUPERVISOR_BASE}/addons/{candidate.slug}/update", self._token
         )
