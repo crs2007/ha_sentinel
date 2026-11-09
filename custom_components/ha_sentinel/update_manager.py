@@ -61,9 +61,11 @@ class UpdateManager:
         )
 
         all_candidates: list[tuple[UpdateCandidate, "UpdateProvider"]] = []
+        errors: dict[str, str] = {}
         for provider, result in zip(available, fetch_results):
             if isinstance(result, Exception):
                 _LOGGER.warning("Provider %s fetch failed: %s", provider.name, result)
+                errors[provider.name] = str(result) or type(result).__name__
                 continue
             for candidate in result:
                 await self.tracker.update(candidate)
@@ -93,7 +95,7 @@ class UpdateManager:
                 i = restart_idx[0]
                 # Write the summary first: the install below may restart HA.
                 await notifier.notify_summary(
-                    self.hass, self._build_results(decided, outcomes)
+                    self.hass, self._build_results(decided, outcomes), errors
                 )
                 outcomes[i] = await self._install_one(*decided[i][:2])
                 for skipped in restart_idx[1:]:
@@ -103,7 +105,7 @@ class UpdateManager:
                     )
 
         results = self._build_results(decided, outcomes)
-        await notifier.notify_summary(self.hass, results)
+        await notifier.notify_summary(self.hass, results, errors)
         return results
 
     @staticmethod

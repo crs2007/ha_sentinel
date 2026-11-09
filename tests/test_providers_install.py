@@ -92,3 +92,19 @@ async def test_hacs_install_repo_not_found_raises():
     hass.data["hacs"].repositories.get_by_full_name.return_value = None
     with pytest.raises(ValueError):
         await HacsProvider(hass).install(_cand("hacs", "a/b"))
+
+
+@pytest.mark.asyncio
+async def test_addon_fetch_http_error_propagates():
+    p, patcher = _addon(_session(status=401))
+    session = _session(status=401)
+    session.get = session.post
+    with patch("custom_components.ha_sentinel.providers.addon.async_get_clientsession", return_value=session):
+        with pytest.raises(aiohttp.ClientResponseError):
+            await p.fetch_candidates()
+
+
+def test_summary_lists_provider_errors():
+    from custom_components.ha_sentinel.notifier import build_summary
+
+    assert "Provider errors: addon (HTTP 401)" in build_summary([], {"addon": "HTTP 401"})

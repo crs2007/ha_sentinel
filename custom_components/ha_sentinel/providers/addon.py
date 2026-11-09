@@ -37,11 +37,13 @@ class AddonProvider(UpdateProvider):
         headers = {"Authorization": f"Bearer {self._token}"}
         candidates: list[UpdateCandidate] = []
 
-        try:
-            resp = await session.get(f"{SUPERVISOR_BASE}/addons", headers=headers)
-            addons = (await resp.json()).get("data", {}).get("addons", [])
-        except Exception:  # noqa: BLE001
-            return candidates
+        async with session.get(
+            f"{SUPERVISOR_BASE}/addons",
+            headers=headers,
+            timeout=aiohttp.ClientTimeout(total=30),
+        ) as resp:
+            resp.raise_for_status()
+            addons = (await resp.json(content_type=None)).get("data", {}).get("addons", [])
 
         for addon in addons:
             current = addon.get("version", "")

@@ -19,15 +19,20 @@ def _days_remaining(seconds: int | None) -> str:
     return f"{days}d"
 
 
-def build_summary(results: list[tuple[UpdateCandidate, Decision, bool | None]]) -> str:
+def build_summary(
+    results: list[tuple[UpdateCandidate, Decision, bool | None]],
+    errors: dict[str, str] | None = None,
+) -> str:
     installed, failed, delayed, skipped, notify_only = [], [], [], [], []
 
     for candidate, decision, success in results:
         label = f"{candidate.name} {candidate.current_version}→{candidate.new_version}"
         if decision.action == "INSTALL" and success:
             installed.append(label)
-        elif decision.action == "INSTALL" and not success:
+        elif decision.action == "INSTALL" and success is False:
             failed.append(label)
+        elif decision.action == "INSTALL":
+            notify_only.append(label)  # eligible, but no install attempted this cycle
         elif decision.action == "DELAY":
             delayed.append(f"{candidate.name} ({_days_remaining(decision.delay_remaining_seconds)} remaining)")
         elif decision.action == "SKIP":
@@ -48,17 +53,23 @@ def build_summary(results: list[tuple[UpdateCandidate, Decision, bool | None]]) 
     if skipped:
         lines.append(f"⚠ Skipped ({len(skipped)}): {', '.join(skipped)}")
 
+    if errors:
+        lines.append(
+            "⚠ Provider errors: " + ", ".join(f"{k} ({v})" for k, v in errors.items())
+        )
+
     return "\n".join(lines)
 
 
 async def notify_summary(
     hass: "HomeAssistant",
     results: list[tuple[UpdateCandidate, Decision, bool | None]],
+    errors: dict[str, str] | None = None,
 ) -> None:
-    if not results:
+    if not results and not errors:
         return
 
-    message = build_summary(results)
+    message = build_summary(results, errors)
     if not message:
         return
 

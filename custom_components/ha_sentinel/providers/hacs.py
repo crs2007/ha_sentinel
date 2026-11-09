@@ -34,30 +34,27 @@ class HacsProvider(UpdateProvider):
             return []
 
         candidates: list[UpdateCandidate] = []
-        try:
-            repositories = hacs.repositories.list_all
-            for repo in repositories:
-                if not getattr(repo, "pending_update", False):
-                    continue
-                current = getattr(repo.data, "installed_version", "") or ""
-                latest = getattr(repo.data, "last_version", "") or ""
-                if not current or not latest or current == latest:
-                    continue
-                candidates.append(
-                    UpdateCandidate(
-                        provider=self.name,
-                        slug=getattr(repo.data, "full_name", repo.data.id),
-                        name=getattr(repo.data, "name", ""),
-                        current_version=current,
-                        new_version=latest,
-                        release_notes=None,
-                        release_url=f"https://github.com/{getattr(repo.data, 'full_name', '')}",
-                        is_beta=_is_beta(latest),
-                        backup_supported=False,
-                    )
+        repositories = hacs.repositories.list_all
+        for repo in repositories:
+            if not getattr(repo, "pending_update", False):
+                continue
+            current = getattr(repo.data, "installed_version", "") or ""
+            latest = getattr(repo.data, "last_version", "") or ""
+            if not current or not latest or current == latest:
+                continue
+            candidates.append(
+                UpdateCandidate(
+                    provider=self.name,
+                    slug=getattr(repo.data, "full_name", repo.data.id),
+                    name=getattr(repo.data, "name", ""),
+                    current_version=current,
+                    new_version=latest,
+                    release_notes=None,
+                    release_url=f"https://github.com/{getattr(repo.data, 'full_name', '')}",
+                    is_beta=_is_beta(latest),
+                    backup_supported=False,
                 )
-        except Exception:  # noqa: BLE001
-            pass
+            )
 
         return candidates
 

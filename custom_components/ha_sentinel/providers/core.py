@@ -1,9 +1,11 @@
 """Provider for HA Core, OS, and Supervisor updates via Supervisor REST API."""
 from __future__ import annotations
 
+import logging
 import os
 from typing import TYPE_CHECKING
 
+import aiohttp
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from ..models import UpdateCandidate
@@ -12,6 +14,7 @@ from .base import UpdateProvider, supervisor_post
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
+_LOGGER = logging.getLogger(__name__)
 SUPERVISOR_BASE = "http://supervisor"
 _ENDPOINTS = [
     ("core", "home-assistant", "/core/info"),
@@ -41,29 +44,47 @@ class CoreProvider(UpdateProvider):
         headers = {"Authorization": f"Bearer {self._token}"}
         candidates: list[UpdateCandidate] = []
 
+        failures: list[str] = []
         for slug, name, path in _ENDPOINTS:
             try:
-                resp = await session.get(f"{SUPERVISOR_BASE}{path}", headers=headers)
-                data = (await resp.json()).get("data", {})
-                current = data.get("version", "")
-                latest = data.get("version_latest", "")
-                if current and latest and current != latest:
-                    candidates.append(
-                        UpdateCandidate(
-                            provider=self.name,
-                            slug=slug,
-                            name=name,
-                            current_version=current,
-                            new_version=latest,
-                            is_beta=_is_beta(latest),
-                            # home-assistant and os updates are backed up via the
-                            # Supervisor homeassistant snapshot scope; supervisor
-                            # self-updates are low-risk and don't need a snapshot.
-                            backup_supported=(slug in ("core", "os")),
-                        )
+                async with session.get(
+                    f"{SUPERVISOR_BASE}{path}",
+                    headers=headers,
+                    timeout=aiohttp.ClientTimeout(total=30),
+                ) as resp:
+                    resp.raise_for_status()
+                    data = (await resp.json(content_type=None)).get("data", {})
+            except aiohttp.ClientResponseError as exc:
+                if exc.status == 404:  # e.g. /os/info on a non-HAOS install
+                    _LOGGER.debug("Endpoint %s not available: %s", path, exc)
+                    continue
+                failures.append(f"{slug}: HTTP {exc.status}")
+                continue
+            except Exception as exc:  # noqa: BLE001
+                failures.append(f"{slug}: {exc or type(exc).__name__}")
+                continue
+            current = data.get("version", "")
+            latest = data.get("version_latest", "")
+            if current and latest and current != latest:
+                candidates.append(
+                    UpdateCandidate(
+                        provider=self.name,
+                        slug=slug,
+                        name=name,
+                        current_version=current,
+                        new_version=latest,
+                        is_beta=_is_beta(latest),
+                        # home-assistant and os updates are backed up via the
+                        # Supervisor homeassistant snapshot scope; supervisor
+                        # self-updates are low-risk and don't need a snapshot.
+                        backup_supported=(slug in ("core", "os")),
                     )
-            except Exception:  # noqa: BLE001
-                pass
+                )
+
+        if failures:
+            _LOGGER.warning("Core provider endpoint errors: %s", "; ".join(failures))
+            if not candidates:
+                raise RuntimeError("; ".join(failures))
 
         return candidates
 
