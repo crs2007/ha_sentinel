@@ -21,6 +21,17 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 
+def is_restart_causing(candidate: UpdateCandidate) -> bool:
+    return candidate.provider == "core" and candidate.slug in ("core", "os")
+
+
+def install_order(candidate: UpdateCandidate) -> int:
+    """supervisor first, then add-ons, HACS, and finally core, then OS."""
+    if candidate.provider == "core":
+        return {"supervisor": 0, "core": 3, "os": 4}.get(candidate.slug, 0)
+    return {"addon": 1, "hacs": 2}.get(candidate.provider, 2)
+
+
 class UpdateManager:
     def __init__(self, hass: "HomeAssistant", config: SentinelConfig) -> None:
         self.hass = hass
@@ -54,33 +65,62 @@ class UpdateManager:
 
         await self.tracker.async_save()
 
-        results: list[tuple[UpdateCandidate, Decision, bool | None]] = []
-        for candidate, provider in all_candidates:
-            decision = policy_engine.decide(candidate, self.config, self.tracker)
-            success: bool | None = None
+        decided = [
+            (c, p, policy_engine.decide(c, self.config, self.tracker))
+            for c, p in all_candidates
+        ]
+        outcomes: dict[int, bool | None] = {}
 
-            if install and decision.action == "INSTALL":
-                if self.config.backup_before_upgrade and candidate.backup_supported:
-                    await backup.create_backup(self.hass, candidate)
-                try:
-                    await provider.install(candidate)
-                    success = True
-                    _LOGGER.info("Installed %s %s", candidate.name, candidate.new_version)
-                except Exception as exc:  # noqa: BLE001
-                    success = False
-                    _LOGGER.error(
-                        "Failed to install %s/%s v%s → v%s: %s",
-                        candidate.provider,
-                        candidate.slug,
-                        candidate.current_version,
-                        candidate.new_version,
-                        exc,
+        if install:
+            to_install = sorted(
+                (i for i, (_, _, d) in enumerate(decided) if d.action == "INSTALL"),
+                key=lambda i: install_order(decided[i][0]),
+            )
+            # Restart-causing installs (core/os) must be last and at most one per
+            # cycle: they kill this process, abandoning anything queued after them.
+            restart_idx = [i for i in to_install if is_restart_causing(decided[i][0])]
+            normal_idx = [i for i in to_install if i not in restart_idx]
+            for i in normal_idx:
+                outcomes[i] = await self._install_one(*decided[i][:2])
+
+            if restart_idx:
+                i = restart_idx[0]
+                # Write the summary first: the install below may restart HA.
+                await notifier.notify_summary(
+                    self.hass, self._build_results(decided, outcomes)
+                )
+                outcomes[i] = await self._install_one(*decided[i][:2])
+                for skipped in restart_idx[1:]:
+                    _LOGGER.info(
+                        "Deferring %s to next cycle: one restart-causing install per cycle",
+                        decided[skipped][0].slug,
                     )
 
-            results.append((candidate, decision, success))
-
+        results = self._build_results(decided, outcomes)
         await notifier.notify_summary(self.hass, results)
         return results
+
+    @staticmethod
+    def _build_results(decided, outcomes):
+        return [(c, d, outcomes.get(i)) for i, (c, _, d) in enumerate(decided)]
+
+    async def _install_one(self, candidate: UpdateCandidate, provider) -> bool:
+        if self.config.backup_before_upgrade and candidate.backup_supported:
+            await backup.create_backup(self.hass, candidate)
+        try:
+            await provider.install(candidate)
+            _LOGGER.info("Installed %s %s", candidate.name, candidate.new_version)
+            return True
+        except Exception as exc:  # noqa: BLE001
+            _LOGGER.error(
+                "Failed to install %s/%s v%s -> v%s: %s",
+                candidate.provider,
+                candidate.slug,
+                candidate.current_version,
+                candidate.new_version,
+                exc,
+            )
+            return False
 
     async def check_now(self) -> list[tuple[UpdateCandidate, Decision, bool | None]]:
         """Fetch and decide without installing."""
