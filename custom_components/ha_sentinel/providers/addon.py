@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING
 
+import aiohttp
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from ..models import UpdateCandidate
@@ -49,6 +50,7 @@ class AddonProvider(UpdateProvider):
                 continue
             if not addon.get("update_available", False):
                 continue
+            notes = await self._fetch_changelog(session, headers, addon.get("slug", ""))
             candidates.append(
                 UpdateCandidate(
                     provider=self.name,
@@ -56,12 +58,28 @@ class AddonProvider(UpdateProvider):
                     name=addon.get("name", addon.get("slug", "")),
                     current_version=current,
                     new_version=latest,
+                    release_notes=notes,
                     is_beta=_is_beta(latest),
                     backup_supported=True,
                 )
             )
 
         return candidates
+
+    async def _fetch_changelog(self, session, headers, slug: str) -> str | None:
+        """Best-effort add-on changelog for breaking-change keyword scoring."""
+        try:
+            async with session.get(
+                f"{SUPERVISOR_BASE}/addons/{slug}/changelog",
+                headers=headers,
+                timeout=aiohttp.ClientTimeout(total=15),
+            ) as resp:
+                if resp.status != 200:
+                    return None
+                # Only the newest entries matter; changelogs list newest first.
+                return (await resp.text())[:4000]
+        except Exception:  # noqa: BLE001
+            return None
 
     async def install(self, candidate: UpdateCandidate) -> None:
         session = async_get_clientsession(self.hass)

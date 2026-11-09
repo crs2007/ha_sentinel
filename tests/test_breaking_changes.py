@@ -41,7 +41,7 @@ def test_score_clamped_to_1():
 
 def test_major_version_jump():
     w = _version_jump_weight("1.9.0", "2.0.0")
-    assert w == 0.4
+    assert w == 0.5
 
 
 def test_minor_version_jump():
@@ -56,14 +56,35 @@ def test_patch_no_jump():
 
 def test_calver_year_jump():
     w = _version_jump_weight("2025.4.0", "2026.4.0")
-    assert w == 0.3
+    assert w == 0.5
 
 
-def test_calver_same_year_no_jump():
-    w = _version_jump_weight("2026.3.0", "2026.4.0")
-    assert w == 0.0
+def test_calver_month_change_is_risky():
+    assert _version_jump_weight("2026.3.0", "2026.4.0") == 0.5
+
+
+def test_calver_patch_no_jump():
+    assert _version_jump_weight("2026.4.0", "2026.4.1") == 0.0
 
 
 def test_bad_version_strings_dont_raise():
     w = _version_jump_weight("unknown", "also-unknown")
     assert w == 0.0
+
+
+@pytest.mark.parametrize(
+    "old,new,expected_skip",
+    [
+        ("2026.10.3", "2026.11.0", True),   # Core monthly release
+        ("2025.12.5", "2026.1.0", True),    # Core year change
+        ("1.9.0", "2.0.0", True),           # add-on / HACS major
+        ("2026.11.0", "2026.11.1", False),  # Core patch
+        ("1.2.0", "1.3.0", False),          # minor
+    ],
+)
+def test_default_threshold_realistic_versions(old, new, expected_skip):
+    from custom_components.ha_sentinel.breaking_changes import score
+    from custom_components.ha_sentinel.models import SentinelConfig, UpdateCandidate
+
+    c = UpdateCandidate(provider="x", slug="s", name="s", current_version=old, new_version=new)
+    assert (score(c) >= SentinelConfig().breaking_threshold) is expected_skip

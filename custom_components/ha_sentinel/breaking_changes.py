@@ -10,13 +10,15 @@ def _version_jump_weight(old: str, new: str) -> float:
         from packaging.version import Version
         v_old = Version(old)
         v_new = Version(new)
-        # CalVer: major looks like a year — treat year change as moderate risk,
-        # same-year changes as no extra risk (they're just month/patch bumps).
+        # CalVer (HA Core): year or month changes ship the monthly release with
+        # its "backward-incompatible changes" section; patch bumps are low risk.
         if v_old.major >= 2000:
-            return 0.3 if v_new.major > v_old.major else 0.0
-        # Regular semver
+            if v_new.major > v_old.major:
+                return 0.5
+            return 0.5 if v_new.minor > v_old.minor else 0.0
+        # Regular semver: a major bump reaches the default threshold on its own.
         if v_new.major > v_old.major:
-            return 0.4
+            return 0.5
         if v_new.minor > v_old.minor:
             return 0.1
         return 0.0
