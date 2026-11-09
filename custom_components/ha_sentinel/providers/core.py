@@ -1,6 +1,7 @@
 """Provider for HA Core, OS, and Supervisor updates via Supervisor REST API."""
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from typing import TYPE_CHECKING
@@ -45,7 +46,8 @@ class CoreProvider(UpdateProvider):
         candidates: list[UpdateCandidate] = []
 
         failures: list[str] = []
-        for slug, name, path in _ENDPOINTS:
+
+        async def fetch_one(slug: str, name: str, path: str) -> None:
             try:
                 async with session.get(
                     f"{SUPERVISOR_BASE}{path}",
@@ -57,12 +59,12 @@ class CoreProvider(UpdateProvider):
             except aiohttp.ClientResponseError as exc:
                 if exc.status == 404:  # e.g. /os/info on a non-HAOS install
                     _LOGGER.debug("Endpoint %s not available: %s", path, exc)
-                    continue
-                failures.append(f"{slug}: HTTP {exc.status}")
-                continue
+                else:
+                    failures.append(f"{slug}: HTTP {exc.status}")
+                return
             except Exception as exc:  # noqa: BLE001
                 failures.append(f"{slug}: {exc or type(exc).__name__}")
-                continue
+                return
             current = data.get("version", "")
             latest = data.get("version_latest", "")
             if current and latest and current != latest:
@@ -80,6 +82,10 @@ class CoreProvider(UpdateProvider):
                         backup_supported=(slug in ("core", "os")),
                     )
                 )
+
+        await asyncio.gather(*(fetch_one(*e) for e in _ENDPOINTS))
+        order = {slug: i for i, (slug, _, _) in enumerate(_ENDPOINTS)}
+        candidates.sort(key=lambda c: order[c.slug])
 
         if failures:
             _LOGGER.warning("Core provider endpoint errors: %s", "; ".join(failures))

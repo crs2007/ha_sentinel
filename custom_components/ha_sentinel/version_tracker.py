@@ -1,6 +1,7 @@
 """Storage-backed version stability tracker."""
 from __future__ import annotations
 
+import json
 import re
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
@@ -49,6 +50,7 @@ class VersionTracker:
     def __init__(self, hass: "HomeAssistant", github_client: "GitHubClient | None" = None) -> None:
         self._store = Store(hass, STORAGE_VERSION, STORAGE_KEY)
         self._tracked: dict[str, dict] = {}
+        self._saved_snapshot: str | None = None
         self._github_client = github_client
 
     async def async_load(self) -> None:
@@ -57,9 +59,15 @@ class VersionTracker:
             self._tracked = data["tracked"]
         else:
             self._tracked = {}
+        self._saved_snapshot = json.dumps(self._tracked, sort_keys=True)
 
     async def async_save(self) -> None:
+        """Persist only when the tracked data changed since the last save."""
+        snapshot = json.dumps(self._tracked, sort_keys=True)
+        if snapshot == self._saved_snapshot:
+            return
         await self._store.async_save({"tracked": self._tracked})
+        self._saved_snapshot = snapshot
 
     def prune(self, succeeded_providers: set[str], seen: set[tuple[str, str]]) -> None:
         """Drop records no longer offered. Only for providers whose fetch succeeded."""

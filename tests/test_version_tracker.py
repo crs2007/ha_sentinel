@@ -302,3 +302,18 @@ async def test_rollback_recreates_record():
     c = _make_candidate(new_version="1.5.0")
     await tracker.update(c)
     assert tracker.get_record(c)["version"] == "1.5.0"
+
+
+@pytest.mark.asyncio
+async def test_save_skipped_when_unchanged():
+    from unittest.mock import AsyncMock
+
+    tracker = _make_tracker()
+    tracker._store = MagicMock()
+    tracker._store.async_save = AsyncMock()
+    await tracker.async_save()
+    await tracker.async_save()
+    assert tracker._store.async_save.await_count == 1
+    await tracker.update(_make_candidate())
+    await tracker.async_save()
+    assert tracker._store.async_save.await_count == 2
