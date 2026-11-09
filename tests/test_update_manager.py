@@ -73,3 +73,40 @@ async def test_install_slug_blocklisted_and_unknown_raise():
             await m.install_slug("bad")
         with pytest.raises(ServiceValidationError):
             await m.install_slug("nothing")
+
+
+@pytest.mark.asyncio
+async def test_concurrent_cycles_install_once():
+    import asyncio
+
+    installs = []
+    cand = _c("addon", "x")
+    p = MagicMock()
+    p.available = True
+    p.fetch_candidates = AsyncMock(return_value=[cand])
+
+    async def inst(c):
+        await asyncio.sleep(0.01)
+        installs.append(c.slug)
+
+    p.install = inst
+    state = {"done": False}
+
+    def decide(c, *_):
+        # After the first install the update would no longer be pending.
+        return Decision(action="SKIP" if state["done"] else "INSTALL", reason="")
+
+    async def fetch():
+        return [] if installs else [cand]
+
+    p.fetch_candidates = fetch
+    with patch.object(um, "GitHubClient"), patch.object(um, "VersionTracker") as vt, \
+         patch.object(um, "async_get_clientsession"), \
+         patch.object(um.policy_engine, "decide", return_value=Decision(action="INSTALL", reason="")), \
+         patch.object(um.notifier, "notify_summary", new=AsyncMock()):
+        vt.return_value.update = AsyncMock()
+        vt.return_value.async_save = AsyncMock()
+        m = um.UpdateManager(MagicMock(), SentinelConfig(backup_before_upgrade=False))
+        m._providers = [p]
+        await asyncio.gather(m.run_cycle(install=True), m.run_cycle(install=True))
+    assert installs == ["x"]

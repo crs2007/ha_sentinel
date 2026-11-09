@@ -37,6 +37,7 @@ class UpdateManager:
         self.hass = hass
         self.config = config
         self.tracker = VersionTracker(hass, GitHubClient(async_get_clientsession(hass)))
+        self._lock = asyncio.Lock()
         self._providers = [
             CoreProvider(hass),
             AddonProvider(hass),
@@ -47,6 +48,11 @@ class UpdateManager:
         await self.tracker.async_load()
 
     async def run_cycle(self, install: bool = True) -> list[tuple[UpdateCandidate, Decision, bool | None]]:
+        """Run one cycle; cycles are serialised so concurrent callers wait."""
+        async with self._lock:
+            return await self._run_cycle_locked(install)
+
+    async def _run_cycle_locked(self, install: bool) -> list[tuple[UpdateCandidate, Decision, bool | None]]:
         available = [p for p in self._providers if p.available]
 
         fetch_results = await asyncio.gather(
@@ -140,6 +146,11 @@ class UpdateManager:
 
         if slug in self.config.blocklist:
             raise ServiceValidationError(f"{slug} is on the blocklist")
+        async with self._lock:
+            await self._install_slug_locked(slug, provider_name)
+
+    async def _install_slug_locked(self, slug: str, provider_name: str | None) -> None:
+        from homeassistant.exceptions import ServiceValidationError
 
         available = [
             p for p in self._providers
