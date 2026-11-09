@@ -212,3 +212,18 @@ def test_double_unsubscribe_is_safe(mock_hass):
     coordinator.async_unsubscribe_schedule()  # second call must not raise
 
     mock_unsub.assert_called_once()  # called exactly once, not twice
+
+
+# ---------------------------------------------------------------------------
+# Periodic polling (issue #1)
+# ---------------------------------------------------------------------------
+
+def test_keep_polling_registers_listener_and_unsubscribes(mock_hass):
+    coordinator, _ = _make_coordinator(mock_hass, _config())
+    assert not coordinator._listeners
+
+    unsub = coordinator.async_keep_polling()
+    assert len(coordinator._listeners) == 1
+
+    unsub()
+    assert not coordinator._listeners

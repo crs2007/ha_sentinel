@@ -83,6 +83,15 @@ class SentinelCoordinator(DataUpdateCoordinator):
         _LOGGER.info("Maintenance window triggered — running install cycle")
         await self.manager.run_cycle(install=True)
 
+    def async_keep_polling(self) -> Callable[[], None]:
+        """Register a no-op listener so the coordinator keeps rescheduling itself.
+
+        DataUpdateCoordinator only schedules the next refresh while it has
+        listeners; this integration has no entities, so without this the
+        update_interval would be ignored after the first refresh.
+        """
+        return self.async_add_listener(lambda: None)
+
     def async_unsubscribe_schedule(self) -> None:
         """Unsubscribe the time-change listener. Called on entry unload."""
         if self._schedule_unsub is not None:
