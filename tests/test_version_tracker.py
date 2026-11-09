@@ -79,7 +79,7 @@ async def test_higher_version_resets_timer():
 
 
 @pytest.mark.asyncio
-async def test_rollback_deletes_record():
+async def test_rollback_restarts_record():
     tracker = _make_tracker()
     c_high = _make_candidate(new_version="10.3.0")
     await tracker.update(c_high)
@@ -87,7 +87,7 @@ async def test_rollback_deletes_record():
     c_low = _make_candidate(new_version="10.1.0")
     await tracker.update(c_low)
 
-    assert tracker.get_record(c_low) is None
+    assert tracker.get_record(c_low)["version"] == "10.1.0"
 
 
 def test_missing_record_is_not_stable():
@@ -274,3 +274,31 @@ async def test_github_negative_lookup_backs_off_for_24h(mock_hass):
     await t.update(c)  # same version, within 24h: no lookup
     await t.update(c)
     assert gh.get_release_date.await_count == 1
+
+
+def test_unparseable_versions_use_natural_ordering():
+    from custom_components.ha_sentinel.version_tracker import _version_gt, _version_lt
+
+    assert _version_gt("v1.10", "v1.9")
+    assert _version_lt("v1.9", "v1.10")
+
+
+def test_prune_only_for_succeeded_providers():
+    from unittest.mock import MagicMock, patch
+
+    from custom_components.ha_sentinel.version_tracker import VersionTracker
+
+    with patch("custom_components.ha_sentinel.version_tracker.Store"):
+        t = VersionTracker(MagicMock())
+    t._tracked = {"addon:a": {}, "addon:b": {}, "hacs:x/y": {}}
+    t.prune({"addon"}, {("addon", "a")})
+    assert set(t._tracked) == {"addon:a", "hacs:x/y"}  # hacs fetch failed -> kept
+
+
+@pytest.mark.asyncio
+async def test_rollback_recreates_record():
+    tracker = _make_tracker()
+    await tracker.update(_make_candidate(new_version="2.0.0"))
+    c = _make_candidate(new_version="1.5.0")
+    await tracker.update(c)
+    assert tracker.get_record(c)["version"] == "1.5.0"

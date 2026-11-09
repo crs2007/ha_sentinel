@@ -71,6 +71,10 @@ class UpdateManager:
                 await self.tracker.update(candidate)
                 all_candidates.append((candidate, provider))
 
+        self.tracker.prune(
+            {p.name for p, r in zip(available, fetch_results) if not isinstance(r, Exception)},
+            {(c.provider, c.slug) for c, _ in all_candidates},
+        )
         await self.tracker.async_save()
 
         decided = [

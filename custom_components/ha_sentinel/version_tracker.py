@@ -1,10 +1,12 @@
 """Storage-backed version stability tracker."""
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 from homeassistant.helpers.storage import Store
+from packaging.version import InvalidVersion, Version
 
 from .const import STORAGE_KEY, STORAGE_VERSION
 from .models import UpdateCandidate
@@ -18,28 +20,29 @@ if TYPE_CHECKING:
 GITHUB_RETRY_INTERVAL = timedelta(hours=24)
 
 
-def _parse_version(v: str):
+def _natural_key(v: str) -> tuple:
+    """Numeric-aware ordering for non-PEP440 tags ('v1.10' > 'v1.9')."""
+    return tuple(
+        (0, int(tok), "") if tok.isdigit() else (1, 0, tok)
+        for tok in re.findall(r"\d+|[^\d.\-_+ ]+", v.lstrip("vV"))
+    )
+
+
+def _compare(a: str, b: str) -> int:
     try:
-        from packaging.version import Version
-        return Version(v)
-    except Exception:
-        return v
+        va, vb = Version(a), Version(b)
+        return (va > vb) - (va < vb)
+    except InvalidVersion:
+        ka, kb = _natural_key(a), _natural_key(b)
+        return (ka > kb) - (ka < kb)
 
 
 def _version_gt(a: str, b: str) -> bool:
-    va, vb = _parse_version(a), _parse_version(b)
-    try:
-        return va > vb
-    except TypeError:
-        return str(va) > str(vb)
+    return _compare(a, b) > 0
 
 
 def _version_lt(a: str, b: str) -> bool:
-    va, vb = _parse_version(a), _parse_version(b)
-    try:
-        return va < vb
-    except TypeError:
-        return str(va) < str(vb)
+    return _compare(a, b) < 0
 
 
 class VersionTracker:
@@ -58,6 +61,13 @@ class VersionTracker:
     async def async_save(self) -> None:
         await self._store.async_save({"tracked": self._tracked})
 
+    def prune(self, succeeded_providers: set[str], seen: set[tuple[str, str]]) -> None:
+        """Drop records no longer offered. Only for providers whose fetch succeeded."""
+        for key in list(self._tracked):
+            provider, _, slug = key.partition(":")
+            if provider in succeeded_providers and (provider, slug) not in seen:
+                del self._tracked[key]
+
     def _key(self, candidate: UpdateCandidate) -> str:
         return f"{candidate.provider}:{candidate.slug}"
 
@@ -75,7 +85,15 @@ class VersionTracker:
                 "github_checked_at": datetime.now(UTC).isoformat(),
             }
         elif _version_lt(candidate.new_version, record["version"]):
+            # Rolled back: restart tracking immediately for the offered version.
             self._tracked.pop(key, None)
+            resolved = await self._resolve_date(candidate)
+            self._tracked[key] = {
+                "version": candidate.new_version,
+                "first_seen": resolved["date"],
+                "date_source": resolved["source"],
+                "github_checked_at": datetime.now(UTC).isoformat(),
+            }
         else:
             # Same version: retry GitHub only if we're still using first_seen
             if (
