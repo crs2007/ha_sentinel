@@ -95,7 +95,6 @@ class CoreProvider(UpdateProvider):
         return candidates
 
     async def install(self, candidate: UpdateCandidate) -> None:
-        session = async_get_clientsession(self.hass)
         path_map = {
             "core": "/core/update",
             "os": "/os/update",
@@ -104,4 +103,5 @@ class CoreProvider(UpdateProvider):
         path = path_map.get(candidate.slug)
         if path is None:
             raise ValueError(f"Unknown core update slug: {candidate.slug!r}")
+        session = async_get_clientsession(self.hass)
         await supervisor_post(session, f"{SUPERVISOR_BASE}{path}", self._token)

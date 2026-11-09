@@ -8,5 +8,5 @@
   "integration_type": "service",
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/crs2007/ha_sentinel/issues",
-  "version": "2026.11.15"
+  "version": "2026.11.16"
 }
