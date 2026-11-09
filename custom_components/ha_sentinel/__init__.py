@@ -10,7 +10,8 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.service import async_register_admin_service
 
-from .const import DOMAIN, SERVICE_CHECK_NOW, SERVICE_INSTALL_NOW
+from . import notifier
+from .const import DOMAIN, SERVICE_CHECK_NOW, SERVICE_DISMISS, SERVICE_INSTALL_NOW
 from .coordinator import SentinelCoordinator
 from .models import SentinelConfig
 
@@ -22,7 +23,7 @@ _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     config = SentinelConfig.from_options(dict(entry.options))
-    coordinator = SentinelCoordinator(hass, config)
+    coordinator = SentinelCoordinator(hass, config, entry)
     await coordinator.manager.async_init()
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
@@ -40,6 +41,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
 
     hass.services.async_register(DOMAIN, SERVICE_CHECK_NOW, handle_check_now)
+    async def handle_dismiss(call: ServiceCall) -> None:
+        notifier.dismiss(hass)
+
+    hass.services.async_register(DOMAIN, SERVICE_DISMISS, handle_dismiss)
     async_register_admin_service(
         hass,
         DOMAIN,
@@ -66,4 +71,5 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data[DOMAIN].pop(entry.entry_id, None)
     hass.services.async_remove(DOMAIN, SERVICE_CHECK_NOW)
     hass.services.async_remove(DOMAIN, SERVICE_INSTALL_NOW)
+    hass.services.async_remove(DOMAIN, SERVICE_DISMISS)
     return True

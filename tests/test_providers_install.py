@@ -108,3 +108,19 @@ def test_summary_lists_provider_errors():
     from custom_components.ha_sentinel.notifier import build_summary
 
     assert "Provider errors: addon (HTTP 401)" in build_summary([], {"addon": "HTTP 401"})
+
+
+@pytest.mark.asyncio
+async def test_notifier_dedups_and_dismisses_stale():
+    from custom_components.ha_sentinel import notifier
+    from custom_components.ha_sentinel.models import Decision
+
+    hass = MagicMock()
+    hass.data = {}
+    res = [(_cand("addon", "x"), Decision("NOTIFY_ONLY", "r"), None)]
+    with patch.object(notifier, "async_create") as create, patch.object(notifier, "async_dismiss") as dismiss:
+        await notifier.notify_summary(hass, res)
+        await notifier.notify_summary(hass, res)  # identical -> skipped
+        assert create.call_count == 1
+        await notifier.notify_summary(hass, [])  # nothing left -> dismissed
+        dismiss.assert_called_once()

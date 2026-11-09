@@ -3,13 +3,17 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from homeassistant.components.persistent_notification import async_create
+from homeassistant.components.persistent_notification import async_create, async_dismiss
+
+from homeassistant.core import callback
 
 from .const import NOTIFICATION_ID
 from .models import Decision, UpdateCandidate
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
+
+_LAST_KEY = "ha_sentinel_last_notification"
 
 
 def _days_remaining(seconds: int | None) -> str:
@@ -22,6 +26,7 @@ def _days_remaining(seconds: int | None) -> str:
 def build_summary(
     results: list[tuple[UpdateCandidate, Decision, bool | None]],
     errors: dict[str, str] | None = None,
+    breaking_threshold: float = 0.5,
 ) -> str:
     installed, failed, delayed, skipped, notify_only = [], [], [], [], []
 
@@ -36,7 +41,7 @@ def build_summary(
         elif decision.action == "DELAY":
             delayed.append(f"{candidate.name} ({_days_remaining(decision.delay_remaining_seconds)} remaining)")
         elif decision.action == "SKIP":
-            extra = f" (breaking score {decision.breaking_score:.2f})" if decision.breaking_score >= 0.5 else ""
+            extra = f" (breaking score {decision.breaking_score:.2f})" if decision.breaking_score >= breaking_threshold else ""
             skipped.append(f"{label}{extra}")
         elif decision.action == "NOTIFY_ONLY":
             notify_only.append(label)
@@ -65,13 +70,19 @@ async def notify_summary(
     hass: "HomeAssistant",
     results: list[tuple[UpdateCandidate, Decision, bool | None]],
     errors: dict[str, str] | None = None,
+    breaking_threshold: float = 0.5,
 ) -> None:
-    if not results and not errors:
+    message = build_summary(results, errors, breaking_threshold) if (results or errors) else ""
+
+    if not message:
+        # Nothing to report: clear any stale notification.
+        if hass.data.pop(_LAST_KEY, None) is not None:
+            async_dismiss(hass, NOTIFICATION_ID)
         return
 
-    message = build_summary(results, errors)
-    if not message:
-        return
+    if hass.data.get(_LAST_KEY) == message:
+        return  # unchanged; don't re-surface it
+    hass.data[_LAST_KEY] = message
 
     async_create(
         hass,
@@ -79,3 +90,9 @@ async def notify_summary(
         title="HA Sentinel",
         notification_id=NOTIFICATION_ID,
     )
+
+
+@callback
+def dismiss(hass: "HomeAssistant") -> None:
+    hass.data.pop(_LAST_KEY, None)
+    async_dismiss(hass, NOTIFICATION_ID)

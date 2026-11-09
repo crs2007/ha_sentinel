@@ -7,6 +7,7 @@ from datetime import timedelta
 from typing import TYPE_CHECKING
 
 from homeassistant.helpers.event import async_track_time_change
+from homeassistant.util import dt as dt_util
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .models import SentinelConfig
@@ -24,7 +25,7 @@ _WEEKDAY_NAMES = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 
 
 class SentinelCoordinator(DataUpdateCoordinator):
-    def __init__(self, hass: "HomeAssistant", config: SentinelConfig) -> None:
+    def __init__(self, hass: "HomeAssistant", config: SentinelConfig, config_entry=None) -> None:
         self.config = config
         self.manager = UpdateManager(hass, config)
         self._schedule_unsub: Callable[[], None] | None = None
@@ -33,6 +34,7 @@ class SentinelCoordinator(DataUpdateCoordinator):
         super().__init__(
             hass,
             _LOGGER,
+            config_entry=config_entry,
             name="ha_sentinel",
             update_interval=timedelta(hours=config.check_interval_hours),
         )
@@ -47,15 +49,14 @@ class SentinelCoordinator(DataUpdateCoordinator):
         if not self.config.schedule_enabled:
             return
 
-        try:
-            parts = self.config.schedule_time.split(":")
-            hour, minute = int(parts[0]), int(parts[1])
-        except (ValueError, AttributeError, IndexError):
+        parsed = dt_util.parse_time(str(self.config.schedule_time))
+        if parsed is None:
             _LOGGER.error(
                 "Invalid schedule_time %r — expected HH:MM. Maintenance window disabled.",
                 self.config.schedule_time,
             )
             return
+        hour, minute = parsed.hour, parsed.minute
 
         self._schedule_unsub = async_track_time_change(
             self.hass,

@@ -99,7 +99,8 @@ class UpdateManager:
                 i = restart_idx[0]
                 # Write the summary first: the install below may restart HA.
                 await notifier.notify_summary(
-                    self.hass, self._build_results(decided, outcomes), errors
+                    self.hass, self._build_results(decided, outcomes), errors,
+                    self.config.breaking_threshold,
                 )
                 outcomes[i] = await self._install_one(*decided[i][:2])
                 for skipped in restart_idx[1:]:
@@ -109,7 +110,9 @@ class UpdateManager:
                     )
 
         results = self._build_results(decided, outcomes)
-        await notifier.notify_summary(self.hass, results, errors)
+        await notifier.notify_summary(
+            self.hass, results, errors, self.config.breaking_threshold
+        )
         return results
 
     @staticmethod
